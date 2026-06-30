@@ -1,0 +1,14 @@
+apiVersion: 1
+
+providers:
+  - name: 'IAI Gabon TP Tracing'
+    orgId: 1
+    folder: 'TP Distributed Tracing'
+    folderUid: 'tp-tracing'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

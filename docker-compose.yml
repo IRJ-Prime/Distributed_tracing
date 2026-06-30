@@ -1,0 +1,219 @@
+
+# =============================================================================
+# PROJET 03 - Distributed Tracing avec OpenTelemetry, Tempo et Grafana
+# IAI Gabon - ING2 - 2025/2026 - IRJ & IJS
+# =============================================================================
+
+networks:
+  tracing-net:
+    driver: bridge
+
+volumes:
+  tempo-data:
+  loki-data:
+  prometheus-data:
+  grafana-data:
+
+services:
+
+  # ===========================================================================
+  # 1. OpenTelemetry Collector - Point d'entrée central des télémétries
+  # ===========================================================================
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.95.0
+    container_name: otel-collector
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./otelcol/config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8888:8888"   # Metrics internes du collector
+      - "8889:8889"   # Prometheus exporter
+    networks:
+      - tracing-net
+    depends_on:
+      - tempo
+      - prometheus
+    restart: unless-stopped
+
+  # ===========================================================================
+  # 2. Grafana Tempo - Backend de traces distribués
+  # ===========================================================================
+  tempo:
+    image: grafana/tempo:2.4.1
+    container_name: tempo
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    volumes:
+      - ./tempo/config.yaml:/etc/tempo/config.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200"   # HTTP API Tempo
+      - "9095:9095"   # gRPC Tempo
+    networks:
+      - tracing-net
+    restart: unless-stopped
+
+  # ===========================================================================
+  # 3. Grafana Loki - Backend de logs
+  # ===========================================================================
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: loki
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"   # HTTP API Loki
+    networks:
+      - tracing-net
+    restart: unless-stopped
+
+  # ===========================================================================
+  # 4. Promtail - Agent de collecte des logs vers Loki
+  # ===========================================================================
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: promtail
+    command: ["-config.file=/etc/promtail/config.yaml"]
+    volumes:
+      - ./promtail/config.yaml:/etc/promtail/config.yaml:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - tracing-net
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # ===========================================================================
+  # 5. Prometheus - Backend de métriques
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    container_name: prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-remote-write-receiver'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"   # Web UI Prometheus
+    networks:
+      - tracing-net
+    restart: unless-stopped
+
+  # ===========================================================================
+  # 6. Grafana - Interface unifiée d'observabilité
+  # ===========================================================================
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor traceToMetrics serviceGraph
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"   # Web UI Grafana
+    networks:
+      - tracing-net
+    depends_on:
+      - tempo
+      - loki
+      - prometheus
+    restart: unless-stopped
+
+  # ===========================================================================
+  # MICROSERVICES - Architecture e-commerce avec latences simulées
+  # ===========================================================================
+
+  # Service API Gateway - Point d'entrée externe
+  service-api:
+    build: ./services/service-api
+    container_name: service-api
+    environment:
+      - SERVICE_NAME=service-api
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=service-api,service.version=1.0.0,deployment.environment=production
+      - SERVICE_ORDERS_URL=http://service-orders:5001
+      - SERVICE_INVENTORY_URL=http://service-inventory:5002
+      - PORT=5000
+    ports:
+      - "5000:5000"
+    networks:
+      - tracing-net
+    depends_on:
+      - otel-collector
+      - service-orders
+      - service-inventory
+    restart: unless-stopped
+    labels:
+      - "logging=promtail"
+
+  # Service Orders - Gestion des commandes
+  service-orders:
+    build: ./services/service-orders
+    container_name: service-orders
+    environment:
+      - SERVICE_NAME=service-orders
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=service-orders,service.version=1.0.0,deployment.environment=production
+      - SERVICE_INVENTORY_URL=http://service-inventory:5002
+      - SERVICE_NOTIFICATIONS_URL=http://service-notifications:5003
+      - PORT=5001
+    ports:
+      - "5001:5001"
+    networks:
+      - tracing-net
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+    labels:
+      - "logging=promtail"
+
+  # Service Inventory - Gestion du stock
+  service-inventory:
+    build: ./services/service-inventory
+    container_name: service-inventory
+    environment:
+      - SERVICE_NAME=service-inventory
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=service-inventory,service.version=1.0.0,deployment.environment=production
+      - PORT=5002
+    ports:
+      - "5002:5002"
+    networks:
+      - tracing-net
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+    labels:
+      - "logging=promtail"
+
+  # Service Notifications - Envoi de notifications
+  service-notifications:
+    build: ./services/service-notifications
+    container_name: service-notifications
+    environment:
+      - SERVICE_NAME=service-notifications
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=service-notifications,service.version=1.0.0,deployment.environment=production
+      - PORT=5003
+    ports:
+      - "5003:5003"
+    networks:
+      - tracing-net
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+    labels:
+      - "logging=promtail"

@@ -1,0 +1,84 @@
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+  grpc_listen_port: 9095
+  log_level: info
+
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+ingester:
+  max_block_duration: 5m
+  trace_idle_period: 10s
+  max_block_bytes: 1_000_000
+
+compactor:
+  compaction:
+    block_retention: 48h
+    compacted_block_retention: 1h
+  ring:
+    kvstore:
+      store: memberlist
+
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/blocks
+    wal:
+      path: /var/tempo/wal
+    pool:
+      max_workers: 100
+      queue_depth: 10000
+
+metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: iai-gabon-lab
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  processor:
+    service_graphs:
+      dimensions:
+        - http.method
+        - http.status_code
+    span_metrics:
+      dimensions:
+        - http.method
+        - http.status_code
+        - http.route
+
+overrides:
+  max_traces_per_user: 10000
+  ingestion_rate_limit_bytes: 15000000
+  ingestion_burst_size_bytes: 20000000
+  metrics_generator_processors:
+    - service-graphs
+    - span-metrics
+
+querier:
+  max_concurrent_queries: 20
+  search:
+    prefer_self: 10
+
+query_frontend:
+  search:
+    max_duration: 0
+    default_result_limit: 20
+    max_result_limit: 0
+
+memberlist:
+  abort_if_cluster_join_fails: false
+  bind_port: 7946
+  join_members: []

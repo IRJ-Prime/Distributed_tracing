@@ -1,0 +1,118 @@
+# =============================================================================
+# OpenTelemetry Collector - Configuration complète
+# Reçoit traces + métriques, les route vers Tempo / Prometheus
+# =============================================================================
+
+receivers:
+  # Réception OTLP via gRPC (port 4317) et HTTP (port 4318)
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        cors:
+          allowed_origins:
+            - "http://*"
+            - "https://*"
+
+  # Métriques internes du collector
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          static_configs:
+            - targets: ['localhost:8888']
+
+processors:
+  # Traitement par batch pour optimiser les performances réseau
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+    send_batch_max_size: 2048
+
+  # Ajout de ressources communes à tous les spans
+  resource:
+    attributes:
+      - key: cluster
+        value: "iai-gabon-lab"
+        action: upsert
+      - key: namespace
+        value: "tp-tracing"
+        action: upsert
+
+  # Filtrage des métriques inutiles
+  filter/drop_unneeded:
+    metrics:
+      exclude:
+        match_type: strict
+        metric_names:
+          - "up"
+
+  # Limitation du débit (protection contre les pics)
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+exporters:
+  # Export des traces vers Grafana Tempo (via OTLP)
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  # Export des métriques vers Prometheus (remote write)
+  prometheusremotewrite:
+    endpoint: "http://prometheus:9090/api/v1/write"
+    tls:
+      insecure_skip_verify: true
+
+  # Export des métriques via endpoint Prometheus scrape
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "otelcol"
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # Logging de debug (désactiver en production)
+  debug:
+    verbosity: basic
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+  zpages:
+    endpoint: 0.0.0.0:55679
+
+service:
+  extensions: [health_check, pprof, zpages]
+  
+  pipelines:
+    # Pipeline traces: OTLP -> batch -> Tempo
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/tempo, debug]
+
+    # Pipeline métriques: OTLP + prometheus -> batch -> Prometheus
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [memory_limiter, batch]
+      exporters: [prometheusremotewrite, prometheus]
+
+    # Pipeline logs: OTLP -> batch -> debug (Loki reçoit via Promtail)
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+
+  telemetry:
+    logs:
+      level: "info"
+    metrics:
+      address: 0.0.0.0:8888

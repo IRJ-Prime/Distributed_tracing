@@ -1,0 +1,28 @@
+# Web Framework
+flask==3.0.2
+requests==2.31.0
+
+# OpenTelemetry SDK - Instrumentation de base
+opentelemetry-api==1.23.0
+opentelemetry-sdk==1.23.0
+
+# Exporteur OTLP (vers OTel Collector -> Tempo)
+opentelemetry-exporter-otlp-proto-grpc==1.23.0
+
+# Instrumentation automatique Flask
+opentelemetry-instrumentation-flask==0.44b0
+opentelemetry-instrumentation-requests==0.44b0
+opentelemetry-instrumentation-logging==0.44b0
+
+# Propagation de contexte W3C TraceContext
+opentelemetry-propagator-b3==1.23.0
+
+# Métriques Prometheus
+prometheus-flask-exporter==0.23.0
+prometheus-client==0.20.0
+
+# Logging structuré JSON
+python-json-logger==2.0.7
+
+# Utilitaires
+gunicorn==21.2.0

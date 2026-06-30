@@ -1,0 +1,69 @@
+# =============================================================================
+# Promtail - Agent de collecte des logs vers Loki
+# Extrait les TraceIDs des logs pour corrélation dans Grafana
+# =============================================================================
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Collecte des logs Docker des microservices
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          - name: label
+            values: ["logging=promtail"]
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: 'project'
+    pipeline_stages:
+      # Parse le JSON des logs Python
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            trace_id: trace_id
+            span_id: span_id
+            service: service
+      # Extraction du TraceID pour corrélation avec Tempo
+      - labels:
+          level:
+          service:
+          trace_id:
+      # Timestamp depuis le log
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano
+      # Sortie finale
+      - output:
+          source: message
+
+  # Collecte des logs système
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          __path__: /var/log/*.log
+    pipeline_stages:
+      - regex:
+          expression: '(?P<timestamp>\S+ \S+) (?P<host>\S+) (?P<process>\S+): (?P<message>.*)'
+      - labels:
+          host:
+          process:

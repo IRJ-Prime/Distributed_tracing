@@ -1,0 +1,26 @@
+# Données Docker volumes (ne pas versionner)
+tempo-data/
+loki-data/
+prometheus-data/
+grafana-data/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+.venv/
+
+# Node (script génération Word)
+node_modules/
+generate_rapport.js
+
+# Fichiers temporaires
+*.log
+*.tmp
+positions.yaml
+
+# OS
+.DS_Store
+Thumbs.db

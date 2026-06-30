@@ -1,0 +1,67 @@
+# =============================================================================
+# Prometheus - Configuration du scraping des métriques
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    cluster: 'iai-gabon-lab'
+    environment: 'tp-tracing'
+
+# Règles d'alerting (vides pour le lab)
+rule_files: []
+
+# Configuration du scraping
+scrape_configs:
+
+  # Auto-monitoring Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+
+  # Métriques exportées par l'OTel Collector
+  - job_name: 'otel-collector'
+    static_configs:
+      - targets: ['otel-collector:8889']
+        labels:
+          service: 'otel-collector'
+
+  # Service Graph depuis Tempo (métriques de dépendances)
+  - job_name: 'tempo-metrics-generator'
+    static_configs:
+      - targets: ['otel-collector:8889']
+        labels:
+          service: 'tempo'
+
+  # Microservices - métriques Flask/Python
+  - job_name: 'service-api'
+    static_configs:
+      - targets: ['service-api:5000']
+        labels:
+          service: 'service-api'
+    metrics_path: '/metrics'
+
+  - job_name: 'service-orders'
+    static_configs:
+      - targets: ['service-orders:5001']
+        labels:
+          service: 'service-orders'
+    metrics_path: '/metrics'
+
+  - job_name: 'service-inventory'
+    static_configs:
+      - targets: ['service-inventory:5002']
+        labels:
+          service: 'service-inventory'
+    metrics_path: '/metrics'
+
+  - job_name: 'service-notifications'
+    static_configs:
+      - targets: ['service-notifications:5003']
+        labels:
+          service: 'service-notifications'
+    metrics_path: '/metrics'
