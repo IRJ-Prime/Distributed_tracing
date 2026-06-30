@@ -1,0 +1,379 @@
+{
+  "title": "RED Dashboard - Microservices IAI Gabon",
+  "description": "Dashboard RED (Rate, Errors, Duration) pour les 4 microservices avec liens trace-to-logs. Projet 03 - IRJ & IJS",
+  "uid": "red-microservices",
+  "version": 1,
+  "schemaVersion": 38,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["tracing", "microservices", "RED", "IAI-Gabon"],
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(http_server_duration_count, service)",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "interval",
+        "label": "Intervalle",
+        "type": "interval",
+        "query": "1m,5m,10m,30m,1h",
+        "current": { "text": "5m", "value": "5m" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Vue d'ensemble - Service Graph",
+      "description": "Graphe des dépendances entre microservices (généré par Tempo Metrics Generator)",
+      "type": "nodeGraph",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "serviceMap"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "── service-api ──────────────────────────",
+      "type": "text",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 8 },
+      "options": { "mode": "markdown", "content": "## 🔵 service-api (API Gateway)" }
+    },
+    {
+      "id": 11,
+      "title": "Rate (req/s) - service-api",
+      "description": "Nombre de requêtes par seconde reçues par le service API",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(flask_http_request_total{service=\"service-api\"}[$interval])) by (method)",
+          "legendFormat": "{{method}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Errors (%) - service-api",
+      "description": "Taux d'erreurs HTTP 5xx du service API",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "unit": "percentunit",
+          "custom": { "lineWidth": 2, "fillOpacity": 20 },
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(flask_http_request_total{service=\"service-api\", status=~\"5..\"}[$interval])) / sum(rate(flask_http_request_total{service=\"service-api\"}[$interval]))",
+          "legendFormat": "Error Rate"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Duration (p50/p95/p99) - service-api",
+      "description": "Latence des requêtes HTTP du service API (percentiles)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-api\"}[$interval])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-api\"}[$interval])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-api\"}[$interval])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "title": "── service-orders ──────────────────────────",
+      "type": "text",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "options": { "mode": "markdown", "content": "## 🟡 service-orders (Gestion Commandes)" }
+    },
+    {
+      "id": 21,
+      "title": "Rate (req/s) - service-orders",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineWidth": 2, "fillOpacity": 10 } }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(flask_http_request_total{service=\"service-orders\"}[$interval])) by (method)",
+          "legendFormat": "{{method}}"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "title": "Errors (%) - service-orders",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "custom": { "lineWidth": 2, "fillOpacity": 20 }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(flask_http_request_total{service=\"service-orders\", status=~\"5..\"}[$interval])) / sum(rate(flask_http_request_total{service=\"service-orders\"}[$interval]))",
+          "legendFormat": "Error Rate"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "title": "Duration (p50/p95/p99) - service-orders",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-orders\"}[$interval])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-orders\"}[$interval])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-orders\"}[$interval])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "title": "── service-inventory ──────────────────────────",
+      "type": "text",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "options": { "mode": "markdown", "content": "## 🟢 service-inventory (Gestion Stock)" }
+    },
+    {
+      "id": 31,
+      "title": "Rate (req/s) - service-inventory",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineWidth": 2, "fillOpacity": 10 } }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(flask_http_request_total{service=\"service-inventory\"}[$interval])) by (method)",
+          "legendFormat": "{{method}}"
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "title": "Errors (%) - service-inventory",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "custom": { "lineWidth": 2, "fillOpacity": 20 }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(flask_http_request_total{service=\"service-inventory\", status=~\"4..\"}[$interval])) / sum(rate(flask_http_request_total{service=\"service-inventory\"}[$interval]))",
+          "legendFormat": "Stock insuffisant (%)"
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "title": "Duration (p50/p95/p99) - service-inventory",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-inventory\"}[$interval])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-inventory\"}[$interval])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-inventory\"}[$interval])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "title": "── service-notifications ──────────────────────────",
+      "type": "text",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 29 },
+      "options": { "mode": "markdown", "content": "## 🔴 service-notifications (Notifications)" }
+    },
+    {
+      "id": 41,
+      "title": "Rate (req/s) - service-notifications",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 30 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineWidth": 2, "fillOpacity": 10 } }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(flask_http_request_total{service=\"service-notifications\"}[$interval])) by (method)",
+          "legendFormat": "{{method}}"
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "title": "Errors (%) - service-notifications",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 30 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "custom": { "lineWidth": 2, "fillOpacity": 20 }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(notification_errors_total[$interval])) / sum(rate(notifications_sent_total[$interval]))",
+          "legendFormat": "Notification Error Rate"
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "title": "Duration (p50/p95/p99) - service-notifications",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 30 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.50, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-notifications\"}[$interval])) by (le))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-notifications\"}[$interval])) by (le))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "expr": "histogram_quantile(0.99, sum(rate(flask_http_request_duration_seconds_bucket{service=\"service-notifications\"}[$interval])) by (le))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "title": "── Corrélation Traces / Logs ──────────────────────────",
+      "type": "text",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 36 },
+      "options": { "mode": "markdown", "content": "## 🔗 Corrélation Traces → Logs (Loki)" }
+    },
+    {
+      "id": 51,
+      "title": "Logs des microservices avec TraceID",
+      "description": "Cliquez sur un TraceID pour ouvrir la trace dans Tempo. Lien trace-to-log configuré.",
+      "type": "logs",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 37 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service=~\"service-(api|orders|inventory|notifications)\"} | json | level != \"\"",
+          "legendFormat": ""
+        }
+      ]
+    }
+  ]
+}
