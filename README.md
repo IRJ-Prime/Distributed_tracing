@@ -1,7 +1,7 @@
 # Projet 03 - Distributed Tracing avec OpenTelemetry, Tempo et Grafana
 
 **IAI Gabon · ING II Administration Réseaux & Cybersécurité · 2025-2026**  
-**Équipe :** ILOUMBOU Roland Junior & <a href="https://github.com/Sam-10-Ph" target="_blank">ISSAMBOU Jean Samuel</a>
+**Équipe :** <a href="https://github.com/IRJ-Prime" target="_blank">ILOUMBOU Roland Junior</a> & <a href="https://github.com/Sam-10-Ph" target="_blank">ISSAMBOU Jean Samuel</a>
 
 ---
 
